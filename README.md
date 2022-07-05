@@ -35,7 +35,9 @@ The **connection string** of the Storage Account which saving the backup files.
 
 
 ### Container Name
-The container name which we would like to save the backup file.
+The container name which we would like to save the backup file. 
+
+Blob Container only allows lower case and numberic character in container name, so the application will convert all the upper case to lower.
 
 
 ## Limitation
