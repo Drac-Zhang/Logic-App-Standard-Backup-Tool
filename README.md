@@ -41,7 +41,7 @@ Blob Container only allows lower case and numberic character in container name, 
 
 
 ### Sample Configuration
-![image](https://user-images.githubusercontent.com/72241569/177250094-52160526-81fc-44a9-b06c-a0bb1a0a8eef.png)
+![image](https://user-images.githubusercontent.com/72241569/177250368-7875d590-612a-4504-89fa-00d776486868.png)
 
 
 ## Limitation
