@@ -40,6 +40,9 @@ The container name which we would like to save the backup file.
 Blob Container only allows lower case and numberic character in container name, so the application will convert all the upper case to lower.
 
 
+### Sample Configuration
+
+
 ## Limitation
 1. The workflow definitions will be deleted after 90 days if it is not the current version. So this application can only backup for the definitions within 90 days.
 2. The application recently using Http trigger, so it need to be called by other applications/services. If you would like to only use Function App, you need to modify the code to switch to Schedule trigger.
