@@ -41,14 +41,21 @@ namespace Company.Function
                 //container name is not allowed to use upper case, convert to lower
                 containerName = Environment.GetEnvironmentVariable("ContainerName").ToLower();
 
-                foreach(BackupInfo bi in logicAppsToBackup)
+                foreach (BackupInfo bi in logicAppsToBackup)
                 {
                     BackupDefinitions(bi.LogicAppName, bi.ConnectionString);
                 }
             }
             catch (Exception ex)
             {
-                responseContent = $"{ex.Message}\r\n{ex.StackTrace.ToString()}";
+                responseContent = $"{ex.Message}\r\n{ex.StackTrace.ToString()}\r\n";
+
+                while (ex.InnerException != null)
+                {
+                    ex = ex.InnerException;
+
+                    responseContent += $"========================================\r\n{ex.Message}\r\n{ex.StackTrace.ToString()}\r\n";
+                }
 
                 return GenerateResponse(responseContent, 500);
             }
@@ -81,11 +88,11 @@ namespace Company.Function
             string lastUpdatedFilePath = $"{logicAppName}/LastUpdatedAt.txt";
             string lastUpdatedTime = GetBlobContent(container, lastUpdatedFilePath);
 
-            if(string.IsNullOrEmpty(lastUpdatedTime))
+            if (string.IsNullOrEmpty(lastUpdatedTime))
             {
                 //for initial run
                 lastUpdatedTime = "1970-01-01T00:00:00.0000000Z";
-            }            
+            }
 
             //New definition might be added during the backup process, get the timestamp before we start
             //The backup file name is based on ChangedTime, so will not create duplicate backup files
@@ -125,7 +132,7 @@ namespace Company.Function
         {
             BlobClient blob = container.GetBlobClient(blobPath);
 
-            if(!blob.Exists())
+            if (!blob.Exists())
             {
                 return null;
             }
@@ -143,7 +150,7 @@ namespace Company.Function
 
             if (!blob.Exists() || overwrite)
             {
-                using(Stream contentStream = new MemoryStream(Encoding.UTF8.GetBytes(content)))
+                using (Stream contentStream = new MemoryStream(Encoding.UTF8.GetBytes(content)))
                 {
                     blob.Upload(contentStream, overwrite);
                 }
@@ -178,7 +185,7 @@ namespace Company.Function
 
     public class BackupInfo
     {
-        public string LogicAppName{get; set;}
-        public string ConnectionString{get;set;}
+        public string LogicAppName { get; set; }
+        public string ConnectionString { get; set; }
     }
 }
