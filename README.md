@@ -1,4 +1,3 @@
-# LAAutoBackup
 ## Usage
 For Logic App Standard, all the workflow definitions are stored in Azure Storage Table. 
 
