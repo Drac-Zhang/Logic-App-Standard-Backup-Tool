@@ -11,7 +11,7 @@ This application is used for reading all the definitions from the Azure Storage 
 ## Configuration for Azure Function
 We need to add 3 application settings in Azure Function configuration
 
-### LogicAppsToBackup ###
+### LogicAppsToBackup
 
 All the Logic App Standard need to be backup
 
@@ -22,13 +22,21 @@ All the Logic App Standard need to be backup
 		"LogicAppName": "Logic App Name 1",
 		"ConnectionString": "ConnectionString 1"
 	},
-         ...
 	{
 		"LogicAppName": "Logic App Name N",
 		"ConnectionString": "ConnectionString N"
 	}
 ]
 ```
+
+
+### TargetBlobConnectionString
+The **connection string** of the Storage Account which saving the backup files.
+
+
+### Container Name
+The container name which we would like to save the backup file.
+
 
 ## Limitation
 1. The workflow definitions will be deleted after 90 days if it is not the current version. So this application can only backup for the definitions within 90 days.
