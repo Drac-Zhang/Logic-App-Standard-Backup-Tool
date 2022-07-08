@@ -1,0 +1,10 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet",
+    "LogicAppsToBackup": "[{\"LogicAppName\":\"LA1\",\"ConnectionString\":\"CS1\"},{\"LogicAppName\":\"LA2\",\"ConnectionString\":\"CS2\"}]",
+    "TargetBlobConnectionString": "Connection String of Target Blob (location for saving the backup files)",
+    "ContainerName": "backuptest"
+  }
+}
