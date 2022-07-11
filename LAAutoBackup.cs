@@ -23,10 +23,10 @@ namespace Company.Function
         private static List<BackupInfo> logicAppsToBackup;
         private static string targetBlobConnectionString;
         private static string containerName;
-        private static string responseContent;
+        private static bool containsFailure = false;
 
         //TODO: need more information for success backup response
-        private static List<string> backupResult;
+        private static List<BackupResult> backupResults;
 
         [FunctionName("LAAutoBackup")]
         public static async Task<IActionResult> Run(
@@ -35,6 +35,8 @@ namespace Company.Function
         {
             try
             {
+                backupResults = new List<BackupResult>();
+
                 logicAppsToBackup = JsonConvert.DeserializeObject<List<BackupInfo>>(Environment.GetEnvironmentVariable("LogicAppsToBackup"));
                 targetBlobConnectionString = Environment.GetEnvironmentVariable("TargetBlobConnectionString");
 
@@ -51,90 +53,104 @@ namespace Company.Function
 
                 foreach (BackupInfo bi in logicAppsToBackup)
                 {
-                    BackupDefinitions(bi.LogicAppName, bi.ConnectionString, container, log);
+                    BackupResult result = BackupDefinitions(bi.LogicAppName, bi.ConnectionString, container, log);
+
+                    //Set flag to true for response status code
+                    if(result.ErrorMessage != null)
+                    {
+                        containsFailure = true;
+                    }
+
+                    backupResults.Add(result);
                 }
             }
             catch (Exception ex)
             {
-                responseContent = $"{ex.Message}\r\n{ex.StackTrace.ToString()}\r\n";
-
-                while (ex.InnerException != null)
-                {
-                    ex = ex.InnerException;
-
-                    responseContent += $"========================================\r\n{ex.Message}\r\n{ex.StackTrace.ToString()}\r\n";
-                }
-
-                return GenerateResponse(responseContent, 500);
+                return GenerateResponse(new ExceptionInfo(ex), 500);
             }
 
-            return GenerateResponse("Backup Succeeded", 200);
+            return GenerateResponse(backupResults, containsFailure ? 500 : 200);
         }
 
-        private static ObjectResult GenerateResponse(string content, int statusCode)
+        private static ObjectResult GenerateResponse(object jsonContent, int statusCode)
         {
+            string content = JsonConvert.SerializeObject(jsonContent, Formatting.Indented);
+
             ObjectResult objectResult = new ObjectResult(content);
             objectResult.StatusCode = statusCode;
 
             return objectResult;
         }
 
-        private static void BackupDefinitions(string logicAppName, string connectionString, BlobContainerClient container, ILogger log)
+        private static BackupResult BackupDefinitions(string logicAppName, string connectionString, BlobContainerClient container, ILogger log)
         {
-            log.LogInformation($"Start to backup workflow definitions for Logic App Standard - {logicAppName}");
-            string definitionTableName = "flow" + StoragePrefixGenerator.Generate(logicAppName) + "flows";
-            log.LogInformation($"Mapped Logic App Standard name: {logicAppName} to Storage Table name: {definitionTableName}");
-
-            TableClient tableClient = new TableClient(connectionString, definitionTableName);
-
-            //Get the recorded last updated timestamp
-            string lastUpdatedFilePath = $"{logicAppName}/LastUpdatedAt.txt";
-            string lastUpdatedTime = GetBlobContent(container, lastUpdatedFilePath);
-
-            if (string.IsNullOrEmpty(lastUpdatedTime))
+            try
             {
-                //for initial run
-                lastUpdatedTime = "1970-01-01T00:00:00.0000000Z";
-                log.LogInformation($"No last backup time entry found, initialize with {lastUpdatedTime}");
-            }
+                log.LogInformation($"Start to backup workflow definitions for Logic App Standard - {logicAppName}");
+                string definitionTableName = "flow" + StoragePrefixGenerator.Generate(logicAppName) + "flows";
+                log.LogInformation($"Mapped Logic App Standard name: {logicAppName} to Storage Table name: {definitionTableName}");
 
-            //New definition might be added during the backup process, get the timestamp before we start
-            //The backup file name is based on ChangedTime, so will not create duplicate backup files
-            string utcNow = System.DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
+                TableClient tableClient = new TableClient(connectionString, definitionTableName);
 
-            log.LogInformation($"Retrieving workflow definitions from Azure Storage Table later than {lastUpdatedTime}");
-            Pageable<TableEntity> tableEntities = tableClient.Query<TableEntity>(filter: $"ChangedTime ge DateTime'{lastUpdatedTime}'");
+                //Get the recorded last updated timestamp
+                string lastUpdatedFilePath = $"{logicAppName}/LastUpdatedAt.txt";
+                string lastUpdatedTime = GetBlobContent(container, lastUpdatedFilePath);
 
-            log.LogInformation($"Generating the backup files in Blob Container folder, {container.AccountName}/{logicAppName}");
-            foreach (TableEntity entity in tableEntities)
-            {
-                string rowKey = entity.GetString("RowKey");
-                string flowSequenceId = entity.GetString("FlowSequenceId");
-                string flowName = entity.GetString("FlowName");
-                string modifiedDate = ((DateTimeOffset)entity.GetDateTimeOffset("ChangedTime")).ToString("yyyy_MM_dd_HH_mm_ss");
-
-                string blobPath = $"{logicAppName}/{flowName}/{modifiedDate}_{flowSequenceId}.json";
-
-                //Filter for duplicate definition which is used recently
-                if (!rowKey.Contains("FLOWVERSION"))
+                if (string.IsNullOrEmpty(lastUpdatedTime))
                 {
-                    continue;
+                    //for initial run
+                    lastUpdatedTime = "1970-01-01T00:00:00.0000000Z";
+                    log.LogInformation($"No last backup time entry found, initialize with {lastUpdatedTime}");
                 }
 
-                byte[] definitionCompressed = entity.GetBinary("DefinitionCompressed");
-                string kind = entity.GetString("Kind");
-                string decompressedDefinition = DecompressContent(definitionCompressed);
+                //New definition might be added during the backup process, get the timestamp before we start
+                //The backup file name is based on ChangedTime, so will not create duplicate backup files
+                string utcNow = System.DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
 
-                string outputContent = $"{{\"definition\": {decompressedDefinition},\"kind\": \"{kind}\"}}";
+                log.LogInformation($"Retrieving workflow definitions from Azure Storage Table later than {lastUpdatedTime} of Logic App Standard: {logicAppName}");
+                Pageable<TableEntity> tableEntities = tableClient.Query<TableEntity>(filter: $"ChangedTime ge DateTime'{lastUpdatedTime}'");
 
-                UploadBlob(container, blobPath, outputContent);
+                log.LogInformation($"Generating the backup files in Blob Container folder, {container.AccountName}/{container.Name}/{logicAppName}");
+                foreach (TableEntity entity in tableEntities)
+                {
+                    string rowKey = entity.GetString("RowKey");
+                    string flowSequenceId = entity.GetString("FlowSequenceId");
+                    string flowName = entity.GetString("FlowName");
+                    string modifiedDate = ((DateTimeOffset)entity.GetDateTimeOffset("ChangedTime")).ToString("yyyy_MM_dd_HH_mm_ss");
+
+                    string blobPath = $"{logicAppName}/{flowName}/{modifiedDate}_{flowSequenceId}.json";
+
+                    //Filter for duplicate definition which is used recently
+                    if (!rowKey.Contains("FLOWVERSION"))
+                    {
+                        continue;
+                    }
+
+                    byte[] definitionCompressed = entity.GetBinary("DefinitionCompressed");
+                    string kind = entity.GetString("Kind");
+                    string decompressedDefinition = DecompressContent(definitionCompressed);
+
+                    //we have 2 different types of workflow (stateful and stateless) which not contain in definiton itself
+                    //append the workflow type in the backup files
+                    string outputContent = $"{{\"definition\": {decompressedDefinition},\"kind\": \"{kind}\"}}";
+
+                    UploadBlob(container, blobPath, outputContent);
+                }
+
+                log.LogInformation($"Updating last backup time");
+                //update last update time
+                UploadBlob(container, lastUpdatedFilePath, utcNow, true);
+
+                log.LogInformation($"Backup for {logicAppName} succeeded");
+
+                return new BackupResult(logicAppName, "Succeeded");
             }
+            catch (Exception ex)
+            {
+                log.LogInformation($"Backup for {logicAppName} falied with exception message: {ex.Message}");
 
-            log.LogInformation($"Updating last backup time");
-            //update last update time
-            UploadBlob(container, lastUpdatedFilePath, utcNow, true);
-
-            log.LogInformation($"Backup for {logicAppName} succeeded");
+                return new BackupResult(logicAppName, "Failed", ex);
+            }
         }
 
         private static string GetBlobContent(BlobContainerClient container, string blobPath)
@@ -167,7 +183,7 @@ namespace Company.Function
         }
 
         //The definitions saved in storage table are compressed with Deflate
-        //need decompress to origin content
+        //Decompress to origin content
         private static string DecompressContent(byte[] Content)
         {
             string result = String.Empty;
