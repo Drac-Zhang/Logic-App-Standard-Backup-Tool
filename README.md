@@ -8,7 +8,7 @@ This application is used for reading all the definitions from the Azure Storage 
 2. The Azure Storage Account can be protected via Private Endpoint or firewall, make sure that the Azure Function can access the source/target Azure Storage.
 
 ## Configuration for Azure Function
-We need to add 3 application settings in Azure Function configuration (For the local development, please refere to **sample.local.settings.json**)
+We need to add 3 application settings in Azure Function configuration (Refere to **sample.local.settings.json** for VS Code development)
 
 ### LogicAppsToBackup
 
