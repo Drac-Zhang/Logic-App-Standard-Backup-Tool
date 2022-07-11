@@ -1,7 +1,7 @@
 ## Usage
 For Logic App Standard, all the workflow definitions are stored in Azure Storage Table. 
 
-This application is used for reading all the definitions from the Azure Storage Table and save them in a target Azure Blob Container.
+This application is used for reading all the definitions from the Azure Storage Table and save them in a target Azure Blob Container via Azure Function.
 
 ## Prerequisite
 1. Create an Azure Function to host the application.
