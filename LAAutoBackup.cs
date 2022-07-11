@@ -92,7 +92,7 @@ namespace Company.Function
 
                 TableClient tableClient = new TableClient(connectionString, definitionTableName);
 
-                //Get the recorded last updated timestamp
+                //Get the recorded last backup timestamp
                 string lastUpdatedFilePath = $"{logicAppName}/LastUpdatedAt.txt";
                 string lastUpdatedTime = GetBlobContent(container, lastUpdatedFilePath);
 
