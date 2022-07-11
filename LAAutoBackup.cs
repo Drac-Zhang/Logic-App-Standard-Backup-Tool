@@ -41,9 +41,17 @@ namespace Company.Function
                 //container name is not allowed to use upper case, convert to lower
                 containerName = Environment.GetEnvironmentVariable("ContainerName").ToLower();
 
+                BlobContainerClient container = new BlobContainerClient(targetBlobConnectionString, containerName);
+
+                //create the blob container if not exists
+                if (!container.Exists())
+                {
+                    container.Create();
+                }
+
                 foreach (BackupInfo bi in logicAppsToBackup)
                 {
-                    BackupDefinitions(bi.LogicAppName, bi.ConnectionString);
+                    BackupDefinitions(bi.LogicAppName, bi.ConnectionString, container, log);
                 }
             }
             catch (Exception ex)
@@ -71,18 +79,13 @@ namespace Company.Function
             return objectResult;
         }
 
-        private static void BackupDefinitions(string logicAppName, string connectionString)
+        private static void BackupDefinitions(string logicAppName, string connectionString, BlobContainerClient container, ILogger log)
         {
+            log.LogInformation($"Start to backup workflow definitions for Logic App Standard - {logicAppName}");
             string definitionTableName = "flow" + StoragePrefixGenerator.Generate(logicAppName) + "flows";
+            log.LogInformation($"Mapped Logic App Standard name: {logicAppName} to Storage Table name: {definitionTableName}");
 
             TableClient tableClient = new TableClient(connectionString, definitionTableName);
-            BlobContainerClient container = new BlobContainerClient(targetBlobConnectionString, containerName);
-
-            //create the blob container if not exists
-            if (!container.Exists())
-            {
-                container.Create();
-            }
 
             //Get the recorded last updated timestamp
             string lastUpdatedFilePath = $"{logicAppName}/LastUpdatedAt.txt";
@@ -92,14 +95,17 @@ namespace Company.Function
             {
                 //for initial run
                 lastUpdatedTime = "1970-01-01T00:00:00.0000000Z";
+                log.LogInformation($"No last backup time entry found, initialize with {lastUpdatedTime}");
             }
 
             //New definition might be added during the backup process, get the timestamp before we start
             //The backup file name is based on ChangedTime, so will not create duplicate backup files
             string utcNow = System.DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
 
+            log.LogInformation($"Retrieving workflow definitions from Azure Storage Table later than {lastUpdatedTime}");
             Pageable<TableEntity> tableEntities = tableClient.Query<TableEntity>(filter: $"ChangedTime ge DateTime'{lastUpdatedTime}'");
 
+            log.LogInformation($"Generating the backup files in Blob Container folder, {container.AccountName}/{logicAppName}");
             foreach (TableEntity entity in tableEntities)
             {
                 string rowKey = entity.GetString("RowKey");
@@ -124,8 +130,11 @@ namespace Company.Function
                 UploadBlob(container, blobPath, outputContent);
             }
 
+            log.LogInformation($"Updating last backup time");
             //update last update time
             UploadBlob(container, lastUpdatedFilePath, utcNow, true);
+
+            log.LogInformation($"Backup for {logicAppName} succeeded");
         }
 
         private static string GetBlobContent(BlobContainerClient container, string blobPath)
