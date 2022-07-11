@@ -1,18 +1,5 @@
 using System;
-using System.IO;
 using System.Text;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using Azure;
-using Azure.Storage.Blobs;
-using Azure.Data.Tables;
-using Azure.Data.Tables.Models;
-using System.IO.Compression;
 
 namespace Company.Function
 {

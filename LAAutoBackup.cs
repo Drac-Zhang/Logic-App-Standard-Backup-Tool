@@ -182,10 +182,4 @@ namespace Company.Function
             return result;
         }
     }
-
-    public class BackupInfo
-    {
-        public string LogicAppName { get; set; }
-        public string ConnectionString { get; set; }
-    }
 }
